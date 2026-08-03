@@ -20,22 +20,22 @@ You MUST respond with ONLY a valid JSON object. Do NOT include any explanations,
 
 CRITICAL INSTRUCTIONS FOR IMAGES:
 1. Character Continuity: Invent a highly detailed, specific visual description for the main character. You MUST use this EXACT same visual description in every single "image_prompt" to ensure they look identical on every page.
-2. FLUX Optimization: Write the "image_prompt" and "cover_prompt" as a comma-separated list of highly descriptive keywords rather than full sentences (e.g., "[Character Description], standing on a cheese crater, glowing green alien friend, starry space background, dramatic lighting, ${style}").
+2. FLUX Optimization: Write the "image_prompt" and "cover_prompt" as a comma-separated list of highly descriptive keywords rather than full sentences. Do NOT include words like "cover", "title", "text", or "words" anywhere in the prompts.
 
 The JSON object must have the following structure:
 {
   "title": "A short, catchy title for the book",
-  "cover_prompt": "A highly detailed, keyword-optimized prompt for FLUX to generate the title illustration. (e.g., 'A beautiful illustration of [Character Description], standing heroically on the moon...'). CRITICAL: NEVER ask the image model to include the title text, words, or an author name! We will overlay the text later. Just ask for a beautiful, text-free illustration.",
+  "cover_prompt": "A highly detailed, keyword-optimized prompt for the opening scenic illustration. CRITICAL: NEVER ask the image model to include text, words, or an author name. Just ask for a beautiful, text-free illustration.",
   "pages": [
     {
       "story_text": "The text for the page (1-2 short sentences).",
-      "image_prompt": "The highly detailed, keyword-optimized prompt for FLUX for this page. Ensure it includes the art style: \\"${style}\\"."
+      "image_prompt": "The highly detailed, keyword-optimized prompt for FLUX for this page."
     }
     // ... exactly ${pages} objects in this array
   ]
 }`;
 
-  const userPrompt = `Theme: ${theme}\nMain Character: ${character}`;
+  const userPrompt = `Theme: ${theme}\nMain Character: ${character}\nArt Style: ${style}`;
 
   let textResponse;
   try {
@@ -101,11 +101,15 @@ The JSON object must have the following structure:
       throw new Error("R2 bucket 'epaper_books' is not bound. Please bind it in your Cloudflare dashboard.");
     }
 
+    // Hardcoded modifiers to enforce the style and prevent text generation
+    const styleModifiers = `, ${style}, STRICT ADHERENCE TO THIS STYLE, absolutely NO text, NO words, NO letters, NO writing, NO watermark, NO signatures, clean artwork`;
+
     // 2. Generate Cover Image
     let coverResponse: any;
     try {
+      const baseCoverPrompt = storyData.cover_prompt || `A beautiful illustration`;
       coverResponse = await c.env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
-        prompt: storyData.cover_prompt || `A book cover with the title "${manifest.title}", ${style}`
+        prompt: `${baseCoverPrompt}${styleModifiers}`
       });
     } catch (err: any) {
       return c.json({ error: 'AI Cover Generation Failed', details: err.message }, 500);
@@ -122,7 +126,7 @@ The JSON object must have the following structure:
       let imageResponse: any;
       try {
         imageResponse = await c.env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
-          prompt: page.image_prompt
+          prompt: `${page.image_prompt}${styleModifiers}`
         });
       } catch (err: any) {
         return c.json({ error: 'AI Image Generation Failed', details: err.message, page: i }, 500);
