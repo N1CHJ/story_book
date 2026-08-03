@@ -39,15 +39,25 @@ Each object must have the following keys:
 
   let pagesData;
   try {
-    let rawStr = textResponse.response.trim();
-    const firstBracket = rawStr.indexOf('[');
-    const lastBracket = rawStr.lastIndexOf(']');
-    if (firstBracket !== -1 && lastBracket !== -1) {
-      rawStr = rawStr.substring(firstBracket, lastBracket + 1);
+    if (typeof textResponse.response === 'string') {
+      let rawStr = textResponse.response.trim();
+      const firstBracket = rawStr.indexOf('[');
+      const lastBracket = rawStr.lastIndexOf(']');
+      if (firstBracket !== -1 && lastBracket !== -1) {
+        rawStr = rawStr.substring(firstBracket, lastBracket + 1);
+      }
+      pagesData = JSON.parse(rawStr);
+    } else {
+      // It's already parsed! (Cloudflare SDK sometimes auto-parses JSON)
+      pagesData = textResponse.response;
     }
-    pagesData = JSON.parse(rawStr);
-  } catch (err) {
-    return c.json({ error: 'Failed to parse AI response into JSON array', raw: textResponse?.response }, 500);
+    
+    // Ensure pagesData is actually an array
+    if (!Array.isArray(pagesData)) {
+      throw new Error("Parsed data is not an array");
+    }
+  } catch (err: any) {
+    return c.json({ error: 'Failed to parse AI response into JSON array', raw: typeof textResponse?.response === 'string' ? textResponse.response : JSON.stringify(textResponse?.response) }, 500);
   }
 
   const manifest = {
