@@ -16,7 +16,7 @@ app.post('/api/generate', async (c) => {
 
   // 1. Generate story text using Llama 3
   const systemPrompt = `You are a creative children's book author. You will generate a story based on a theme, character, and art style.
-You MUST respond with a valid JSON array. Do not include markdown code blocks, do not include any other text.
+You MUST respond with ONLY a valid JSON array. Do NOT include any explanations, markdown formatting, or introduction text. Just the raw JSON array.
 The JSON array must contain exactly ${pages} objects, where each object represents a page.
 Each object must have the following keys:
 - "story_text": The text for the page (1-2 short sentences).
@@ -38,8 +38,13 @@ Each object must have the following keys:
 
   let pagesData;
   try {
-    const rawJson = textResponse.response.replace(/```json/g, '').replace(/```/g, '').trim();
-    pagesData = JSON.parse(rawJson);
+    let rawStr = textResponse.response.trim();
+    const firstBracket = rawStr.indexOf('[');
+    const lastBracket = rawStr.lastIndexOf(']');
+    if (firstBracket !== -1 && lastBracket !== -1) {
+      rawStr = rawStr.substring(firstBracket, lastBracket + 1);
+    }
+    pagesData = JSON.parse(rawStr);
   } catch (err) {
     return c.json({ error: 'Failed to parse AI response into JSON array', raw: textResponse?.response }, 500);
   }
