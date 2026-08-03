@@ -28,7 +28,18 @@ export function GeneratorForm({ onGenerated }: GeneratorFormProps) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate story');
+        let errorMessage = 'Failed to generate story';
+        try {
+          const errorData = await response.json();
+          if (errorData.details) {
+            errorMessage = `${errorData.error}: ${errorData.details}`;
+          } else if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch (e) {
+          // Ignore parsing error
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();

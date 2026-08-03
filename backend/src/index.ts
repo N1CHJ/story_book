@@ -24,19 +24,24 @@ Each object must have the following keys:
 
   const userPrompt = `Theme: ${theme}\nMain Character: ${character}`;
 
-  const textResponse = await c.env.AI.run('@cf/meta/llama-3-8b-instruct', {
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ]
-  });
+  let textResponse;
+  try {
+    textResponse = await c.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ]
+    });
+  } catch (err: any) {
+    return c.json({ error: 'AI Text Generation Failed', details: err.message }, 500);
+  }
 
   let pagesData;
   try {
     const rawJson = textResponse.response.replace(/```json/g, '').replace(/```/g, '').trim();
     pagesData = JSON.parse(rawJson);
   } catch (err) {
-    return c.json({ error: 'Failed to parse AI response into JSON array', raw: textResponse.response }, 500);
+    return c.json({ error: 'Failed to parse AI response into JSON array', raw: textResponse?.response }, 500);
   }
 
   const manifest = {
@@ -51,9 +56,14 @@ Each object must have the following keys:
   for (let i = 0; i < pagesData.length; i++) {
     const page = pagesData[i];
     
-    const imageResponse = await c.env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
-      prompt: page.image_prompt
-    });
+    let imageResponse;
+    try {
+      imageResponse = await c.env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
+        prompt: page.image_prompt
+      });
+    } catch (err: any) {
+      return c.json({ error: 'AI Image Generation Failed', details: err.message, page: i }, 500);
+    }
     
     // imageResponse is an array of bytes
     const imageKey = `${bookId}/page_${i}.jpeg`;
