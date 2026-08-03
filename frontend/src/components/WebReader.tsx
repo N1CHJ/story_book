@@ -27,8 +27,8 @@ export function WebReader({ manifest, onClose }: WebReaderProps) {
 
   const page = manifest.pages[currentPage];
   
-  // Since it's local development, assume backend is at http://localhost:8787
-  const imageUrl = `http://localhost:8787/api/book/${manifest.id}/image/${currentPage}`;
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+  const imageUrl = `${apiUrl}/api/book/${manifest.id}/image/${currentPage}`;
 
   const handleNext = () => {
     if (currentPage < manifest.pages.length - 1) {

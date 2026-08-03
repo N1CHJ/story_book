@@ -20,7 +20,8 @@ export function GeneratorForm({ onGenerated }: GeneratorFormProps) {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8787/api/generate', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+      const response = await fetch(`${apiUrl}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ theme, character, style, pages }),
