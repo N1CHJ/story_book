@@ -17,10 +17,15 @@ app.post('/api/generate', async (c) => {
   // 1. Generate story text using Llama 3
   const systemPrompt = `You are a creative children's book author. You will generate a story based on a theme, character, and art style.
 You MUST respond with ONLY a valid JSON array. Do NOT include any explanations, markdown formatting, or introduction text. Just the raw JSON array.
+
+CRITICAL INSTRUCTIONS FOR IMAGES:
+1. Character Continuity: Invent a highly detailed, specific visual description for the main character (e.g., "a fluffy brown bear wearing a bright red spacesuit and a glass helmet"). You MUST use this EXACT same visual description in every single "image_prompt" to ensure they look identical on every page.
+2. FLUX Optimization: Write the "image_prompt" as a comma-separated list of highly descriptive keywords rather than full sentences (e.g., "[Character Description], standing on a cheese crater, glowing green alien friend, starry space background, dramatic lighting, ${style}").
+
 The JSON array must contain exactly ${pages} objects, where each object represents a page.
 Each object must have the following keys:
 - "story_text": The text for the page (1-2 short sentences).
-- "image_prompt": A highly detailed prompt for an image generator (like Flux) to illustrate this page. Ensure the prompt includes the art style: "${style}".`;
+- "image_prompt": The highly detailed, keyword-optimized prompt for FLUX. Ensure it includes the art style: "${style}".`;
 
   const userPrompt = `Theme: ${theme}\nMain Character: ${character}`;
 
