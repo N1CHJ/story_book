@@ -11,9 +11,11 @@ interface Page {
 
 interface Manifest {
   id: string;
+  title: string;
   theme: string;
   character: string;
   style: string;
+  cover_image: string;
   pages: Page[];
 }
 
@@ -23,12 +25,15 @@ interface WebReaderProps {
 }
 
 export function WebReader({ manifest, onClose }: WebReaderProps) {
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(-1);
 
-  const page = manifest.pages[currentPage];
+  const isCover = currentPage === -1;
+  const page = isCover ? null : manifest.pages[currentPage];
   
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
-  const imageUrl = `${apiUrl}/api/book/${manifest.id}/image/${currentPage}`;
+  const imageUrl = isCover 
+    ? `${apiUrl}/api/book/${manifest.id}/image/cover`
+    : `${apiUrl}/api/book/${manifest.id}/image/${currentPage}`;
 
   const handleNext = () => {
     if (currentPage < manifest.pages.length - 1) {
@@ -37,7 +42,7 @@ export function WebReader({ manifest, onClose }: WebReaderProps) {
   };
 
   const handlePrev = () => {
-    if (currentPage > 0) {
+    if (currentPage > -1) {
       setCurrentPage((p) => p - 1);
     }
   };
@@ -53,50 +58,52 @@ export function WebReader({ manifest, onClose }: WebReaderProps) {
           <span>Home</span>
         </button>
         <div className="text-sm font-medium text-[var(--text)]">
-          Page {currentPage + 1} of {manifest.pages.length}
+          {isCover ? "Cover Page" : `Page ${currentPage + 1} of ${manifest.pages.length}`}
         </div>
       </div>
 
-      <div className="relative bg-white dark:bg-[#16171d] flex-grow rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border-2 border-[var(--border)] flex flex-col md:flex-row">
+      <div className="relative bg-white dark:bg-[#16171d] flex-grow rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border-2 border-[var(--border)] flex flex-col">
         
         {/* Image Section */}
-        <div className="w-full md:w-1/2 relative bg-[var(--code-bg)] flex items-center justify-center p-4">
+        <div className={`w-full relative bg-[var(--code-bg)] flex items-center justify-center p-4 ${isCover ? 'h-full' : 'h-[60%] sm:h-[65%] border-b border-[var(--border)]'}`}>
           <AnimatePresence mode="wait">
             <motion.img
               key={imageUrl}
               src={imageUrl}
-              alt={page.image_prompt}
+              alt={isCover ? manifest.title : page?.image_prompt}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="w-full h-auto max-h-full object-contain rounded-xl shadow-sm"
+              className="w-full h-full object-contain rounded-xl shadow-sm"
             />
           </AnimatePresence>
         </div>
 
         {/* Text Section */}
-        <div className="w-full md:w-1/2 p-8 sm:p-12 flex flex-col justify-center relative">
-          <AnimatePresence mode="wait">
-            <motion.p
-              key={page.story_text}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3, delay: 0.1 }}
-              className="text-2xl sm:text-3xl leading-relaxed text-[var(--text-h)] font-serif text-left"
-            >
-              {page.story_text}
-            </motion.p>
-          </AnimatePresence>
-        </div>
+        {!isCover && page && (
+          <div className="w-full h-[40%] sm:h-[35%] p-6 sm:p-10 flex flex-col justify-center relative">
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={page.story_text}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3, delay: 0.1 }}
+                className="text-2xl sm:text-3xl lg:text-4xl leading-relaxed text-[var(--text-h)] font-serif text-center"
+              >
+                {page.story_text}
+              </motion.p>
+            </AnimatePresence>
+          </div>
+        )}
       </div>
 
       {/* Hardware-like Navigation Buttons */}
       <div className="flex justify-center items-center gap-8 mt-8">
         <button
           onClick={handlePrev}
-          disabled={currentPage === 0}
+          disabled={currentPage === -1}
           className="p-4 rounded-full bg-white dark:bg-[#1f2028] shadow-md border border-[var(--border)] disabled:opacity-30 disabled:cursor-not-allowed hover:scale-105 active:scale-95 transition-all text-[var(--text-h)]"
         >
           <ChevronLeft className="w-8 h-8" />

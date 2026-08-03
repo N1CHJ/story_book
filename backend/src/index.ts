@@ -16,16 +16,24 @@ app.post('/api/generate', async (c) => {
 
   // 1. Generate story text using Llama 3
   const systemPrompt = `You are a creative children's book author. You will generate a story based on a theme, character, and art style.
-You MUST respond with ONLY a valid JSON array. Do NOT include any explanations, markdown formatting, or introduction text. Just the raw JSON array.
+You MUST respond with ONLY a valid JSON object. Do NOT include any explanations, markdown formatting, or introduction text. Just the raw JSON object.
 
 CRITICAL INSTRUCTIONS FOR IMAGES:
 1. Character Continuity: Invent a highly detailed, specific visual description for the main character (e.g., "a fluffy brown bear wearing a bright red spacesuit and a glass helmet"). You MUST use this EXACT same visual description in every single "image_prompt" to ensure they look identical on every page.
-2. FLUX Optimization: Write the "image_prompt" as a comma-separated list of highly descriptive keywords rather than full sentences (e.g., "[Character Description], standing on a cheese crater, glowing green alien friend, starry space background, dramatic lighting, ${style}").
+2. FLUX Optimization: Write the "image_prompt" and "cover_prompt" as a comma-separated list of highly descriptive keywords rather than full sentences (e.g., "[Character Description], standing on a cheese crater, glowing green alien friend, starry space background, dramatic lighting, ${style}").
 
-The JSON array must contain exactly ${pages} objects, where each object represents a page.
-Each object must have the following keys:
-- "story_text": The text for the page (1-2 short sentences).
-- "image_prompt": The highly detailed, keyword-optimized prompt for FLUX. Ensure it includes the art style: "${style}".`;
+The JSON object must have the following structure:
+{
+  "title": "A short, catchy title for the book",
+  "cover_prompt": "A highly detailed, keyword-optimized prompt for FLUX to generate the book cover. MUST include the text of the title (e.g., 'A book cover with the title \\"The Moon Cheese Adventure\\", [Character Description]...') and the art style.",
+  "pages": [
+    {
+      "story_text": "The text for the page (1-2 short sentences).",
+      "image_prompt": "The highly detailed, keyword-optimized prompt for FLUX for this page. Ensure it includes the art style: \\"${style}\\"."
+    }
+    // ... exactly ${pages} objects in this array
+  ]
+}`;
 
   const userPrompt = `Theme: ${theme}\nMain Character: ${character}`;
 
@@ -42,24 +50,24 @@ Each object must have the following keys:
     return c.json({ error: 'AI Text Generation Failed', details: err.message }, 500);
   }
 
-  let pagesData;
+  let storyData;
   try {
     if (typeof textResponse.response === 'string') {
       let rawStr = textResponse.response.trim();
-      const firstBracket = rawStr.indexOf('[');
-      const lastBracket = rawStr.lastIndexOf(']');
-      if (firstBracket !== -1 && lastBracket !== -1) {
-        rawStr = rawStr.substring(firstBracket, lastBracket + 1);
+      const firstBrace = rawStr.indexOf('{');
+      const lastBrace = rawStr.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1) {
+        rawStr = rawStr.substring(firstBrace, lastBrace + 1);
       }
-      pagesData = JSON.parse(rawStr);
+      storyData = JSON.parse(rawStr);
     } else {
-      // It's already parsed! (Cloudflare SDK sometimes auto-parses JSON)
-      pagesData = textResponse.response;
+      // It's already parsed!
+      storyData = textResponse.response;
     }
     
-    // Ensure pagesData is actually an array
-    if (!Array.isArray(pagesData)) {
-      throw new Error("Parsed data is not an array");
+    // Ensure storyData is valid
+    if (!storyData || !Array.isArray(storyData.pages)) {
+      throw new Error("Parsed data is missing the 'pages' array");
     }
   } catch (err: any) {
     return c.json({ error: 'Failed to parse AI response into JSON array', raw: typeof textResponse?.response === 'string' ? textResponse.response : JSON.stringify(textResponse?.response) }, 500);
@@ -67,16 +75,49 @@ Each object must have the following keys:
 
   const manifest = {
     id: bookId,
+    title: storyData.title || "My Custom Story",
     theme,
     character,
     style,
+    cover_image: `${bookId}/cover.jpeg`,
     pages: [] as any[]
   };
 
   try {
-    // 2. Generate images for each page
-    for (let i = 0; i < pagesData.length; i++) {
-      const page = pagesData[i];
+    const parseImageResponse = (res: any) => {
+      if (res && typeof res === 'object' && !ArrayBuffer.isView(res) && !(res instanceof ArrayBuffer)) {
+        let b64 = res.image || res.response || res.result;
+        if (typeof b64 === 'string') {
+          const bin = atob(b64);
+          const bytes = new Uint8Array(bin.length);
+          for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
+          return bytes;
+        } else if (Array.isArray(res.data)) return new Uint8Array(res.data);
+      }
+      return res;
+    };
+
+    if (!c.env.epaper_books) {
+      throw new Error("R2 bucket 'epaper_books' is not bound. Please bind it in your Cloudflare dashboard.");
+    }
+
+    // 2. Generate Cover Image
+    let coverResponse: any;
+    try {
+      coverResponse = await c.env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
+        prompt: storyData.cover_prompt || `A book cover with the title "${manifest.title}", ${style}`
+      });
+    } catch (err: any) {
+      return c.json({ error: 'AI Cover Generation Failed', details: err.message }, 500);
+    }
+    
+    await c.env.epaper_books.put(manifest.cover_image, parseImageResponse(coverResponse), {
+      httpMetadata: { contentType: 'image/jpeg' }
+    });
+
+    // 3. Generate images for each page
+    for (let i = 0; i < storyData.pages.length; i++) {
+      const page = storyData.pages[i];
       
       let imageResponse: any;
       try {
@@ -86,34 +127,10 @@ Each object must have the following keys:
       } catch (err: any) {
         return c.json({ error: 'AI Image Generation Failed', details: err.message, page: i }, 500);
       }
-      
-      let imageBytes = imageResponse;
-      if (imageResponse && typeof imageResponse === 'object' && !ArrayBuffer.isView(imageResponse) && !(imageResponse instanceof ArrayBuffer)) {
-        let base64String = imageResponse.image || imageResponse.response || imageResponse.result;
-        if (typeof base64String === 'string') {
-          const binaryString = atob(base64String);
-          imageBytes = new Uint8Array(binaryString.length);
-          for (let j = 0; j < binaryString.length; j++) {
-            imageBytes[j] = binaryString.charCodeAt(j);
-          }
-        } else if (Array.isArray(imageResponse)) {
-          imageBytes = new Uint8Array(imageResponse);
-        } else if (imageResponse.data && Array.isArray(imageResponse.data)) {
-          imageBytes = new Uint8Array(imageResponse.data);
-        } else {
-          // If we don't know what it is, throw an error to display it in the frontend
-          throw new Error('Unknown image response format. Keys: ' + Object.keys(imageResponse).join(', ') + ' | Typeof: ' + typeof imageResponse);
-        }
-      }
 
-      // imageResponse is an array of bytes or base64
       const imageKey = `${bookId}/page_${i}.jpeg`;
       
-      if (!c.env.epaper_books) {
-        throw new Error("R2 bucket 'epaper_books' is not bound. Please bind it in your Cloudflare dashboard.");
-      }
-
-      await c.env.epaper_books.put(imageKey, imageBytes, {
+      await c.env.epaper_books.put(imageKey, parseImageResponse(imageResponse), {
         httpMetadata: { contentType: 'image/jpeg' }
       });
 
@@ -154,7 +171,7 @@ app.get('/api/book/:id', async (c) => {
 app.get('/api/book/:id/image/:page', async (c) => {
   const bookId = c.req.param('id');
   const page = c.req.param('page');
-  const imageKey = `${bookId}/page_${page}.jpeg`;
+  const imageKey = page === 'cover' ? `${bookId}/cover.jpeg` : `${bookId}/page_${page}.jpeg`;
 
   const object = await c.env.epaper_books.get(imageKey);
 
