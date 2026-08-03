@@ -79,7 +79,7 @@ export function WebReader({ manifest, onClose }: WebReaderProps) {
             />
           </AnimatePresence>
           {isCover && (
-            <div className="absolute inset-0 flex items-center justify-center p-8 pointer-events-none">
+            <div className="absolute inset-0 z-10 flex items-center justify-center p-8 pointer-events-none">
               <motion.h1 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
