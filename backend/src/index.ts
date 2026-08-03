@@ -73,7 +73,7 @@ Each object must have the following keys:
     for (let i = 0; i < pagesData.length; i++) {
       const page = pagesData[i];
       
-      let imageResponse;
+      let imageResponse: any;
       try {
         imageResponse = await c.env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
           prompt: page.image_prompt
@@ -82,6 +82,25 @@ Each object must have the following keys:
         return c.json({ error: 'AI Image Generation Failed', details: err.message, page: i }, 500);
       }
       
+      let imageBytes = imageResponse;
+      if (imageResponse && typeof imageResponse === 'object' && !ArrayBuffer.isView(imageResponse) && !(imageResponse instanceof ArrayBuffer)) {
+        let base64String = imageResponse.image || imageResponse.response || imageResponse.result;
+        if (typeof base64String === 'string') {
+          const binaryString = atob(base64String);
+          imageBytes = new Uint8Array(binaryString.length);
+          for (let j = 0; j < binaryString.length; j++) {
+            imageBytes[j] = binaryString.charCodeAt(j);
+          }
+        } else if (Array.isArray(imageResponse)) {
+          imageBytes = new Uint8Array(imageResponse);
+        } else if (imageResponse.data && Array.isArray(imageResponse.data)) {
+          imageBytes = new Uint8Array(imageResponse.data);
+        } else {
+          // If we don't know what it is, throw an error to display it in the frontend
+          throw new Error('Unknown image response format. Keys: ' + Object.keys(imageResponse).join(', ') + ' | Typeof: ' + typeof imageResponse);
+        }
+      }
+
       // imageResponse is an array of bytes or base64
       const imageKey = `${bookId}/page_${i}.jpeg`;
       
@@ -89,7 +108,7 @@ Each object must have the following keys:
         throw new Error("R2 bucket 'epaper_books' is not bound. Please bind it in your Cloudflare dashboard.");
       }
 
-      await c.env.epaper_books.put(imageKey, imageResponse, {
+      await c.env.epaper_books.put(imageKey, imageBytes, {
         httpMetadata: { contentType: 'image/jpeg' }
       });
 
