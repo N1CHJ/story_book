@@ -36,6 +36,9 @@ export function GeneratorForm({ onGenerated }: GeneratorFormProps) {
           } else if (errorData.error) {
             errorMessage = errorData.error;
           }
+          if (errorData.raw) {
+            errorMessage += `\n\nRaw LLM output:\n${errorData.raw}`;
+          }
         } catch (e) {
           // Ignore parsing error
         }
@@ -118,7 +121,7 @@ export function GeneratorForm({ onGenerated }: GeneratorFormProps) {
             </div>
 
             {error && (
-              <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl text-sm">
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl text-sm whitespace-pre-wrap break-words max-h-96 overflow-y-auto">
                 {error}
               </div>
             )}
