@@ -27,6 +27,7 @@ Each object must have the following keys:
   let textResponse;
   try {
     textResponse = await c.env.AI.run('@cf/meta/llama-3.3-70b-instruct-fp8-fast', {
+      max_tokens: 2048,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
