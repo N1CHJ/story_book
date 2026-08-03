@@ -65,7 +65,7 @@ export function WebReader({ manifest, onClose }: WebReaderProps) {
       <div className="relative bg-white dark:bg-[#16171d] flex-grow rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border-2 border-[var(--border)] flex flex-col">
         
         {/* Image Section */}
-        <div className={`w-full relative bg-[var(--code-bg)] flex items-center justify-center p-4 ${isCover ? 'h-full' : 'h-[60%] sm:h-[65%] border-b border-[var(--border)]'}`}>
+        <div className={`w-full relative bg-[var(--code-bg)] flex items-center justify-center p-4 ${isCover ? 'flex-1' : 'flex-1 min-h-0 border-b border-[var(--border)]'}`}>
           <AnimatePresence mode="wait">
             <motion.img
               key={imageUrl}
@@ -82,7 +82,7 @@ export function WebReader({ manifest, onClose }: WebReaderProps) {
 
         {/* Text Section */}
         {!isCover && page && (
-          <div className="w-full h-[40%] sm:h-[35%] p-6 sm:p-10 flex flex-col justify-center relative">
+          <div className="w-full flex-none max-h-[45%] overflow-hidden p-4 sm:p-6 lg:p-8 flex flex-col justify-center relative">
             <AnimatePresence mode="wait">
               <motion.p
                 key={page.story_text}
@@ -90,7 +90,7 @@ export function WebReader({ manifest, onClose }: WebReaderProps) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.3, delay: 0.1 }}
-                className="text-2xl sm:text-3xl lg:text-4xl leading-relaxed text-[var(--text-h)] font-serif text-center"
+                className="text-xl sm:text-2xl lg:text-3xl leading-relaxed sm:leading-loose text-[var(--text-h)] font-serif text-center"
               >
                 {page.story_text}
               </motion.p>

@@ -25,7 +25,7 @@ CRITICAL INSTRUCTIONS FOR IMAGES:
 The JSON object must have the following structure:
 {
   "title": "A short, catchy title for the book",
-  "cover_prompt": "A highly detailed, keyword-optimized prompt for FLUX to generate the book cover. MUST include the text of the title (e.g., 'A book cover with the title \\"The Moon Cheese Adventure\\", [Character Description]...') and the art style.",
+  "cover_prompt": "A highly detailed, keyword-optimized prompt for FLUX to generate the book cover. MUST include the text of the title (e.g., 'A book cover with the title \"The Moon Cheese Adventure\", [Character Description]...') and the art style. CRITICAL: DO NOT ask the image model to include an author name or any other text besides the title!",
   "pages": [
     {
       "story_text": "The text for the page (1-2 short sentences).",
