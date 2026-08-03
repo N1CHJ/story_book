@@ -10,37 +10,85 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.use('/api/*', cors());
 
+const STYLE_PROMPTS: Record<string, { pos: string, neg: string }> = {
+  'Vintage': {
+    pos: "Style of Beatrix Potter, soft watercolor textures, delicate ink outlines, gentle brushstrokes, nostalgic atmosphere, storybook aesthetic, high-quality children's book illustration",
+    neg: "photograph, photorealistic, 3d render, digital art, bold colors, neon, oversaturated, modern, comic, text, signature"
+  },
+  'Line Drawing': {
+    pos: "black and white, high contrast, colorless, line art, coloring book style, centered, minimalist, flat, black ink lines on white paper, blank white background",
+    neg: "shading, color, gradients, grey, halftone, texture, dots, noise, tint, black background, shadows, watermark, text, signature, 3d render, photograph"
+  },
+  'Cartoon': {
+    pos: "cute cartoon style, bright, clear lines, 2d vector art, Disney style, flat shading, child-like illustration, playful",
+    neg: "3d render, photorealistic, realism, messy, dark, grim, text, watermark"
+  },
+  'Realistic': {
+    pos: "highly detailed, realistic painting, soft natural lighting, beautiful textures, cinematic lighting, masterpiece",
+    neg: "cartoon, anime, flat, simplified, minimalist, line art, sketch, abstract"
+  },
+  'Wimmelbuch': {
+    pos: "extremely detailed busy scene, wimmelbuch style, many tiny characters, intricate details, wide angle, colorful",
+    neg: "simple, minimalist, empty space, abstract, blurry, close up, text"
+  },
+  'Whimsical': {
+    pos: "whimsical illustration, soft dreamy shapes, magical surreal elements, floating clouds, soft pastel tones, fantasy",
+    neg: "harsh lines, photorealistic, grim, dark, scary, modern, 3d render"
+  },
+  'Abstract': {
+    pos: "colorful geometric shapes, playful abstract forms, modern vector style, flat colors, children's book illustration",
+    neg: "realistic, 3d, detailed, shading, messy, sketch, text"
+  },
+  'Moody': {
+    pos: "atmospheric, muted colors, dark lighting with a single warm glowing light source, beautiful shadows, emotional, profound, dramatic lighting",
+    neg: "bright, flat, cartoon, simple, cheerful, neon"
+  }
+};
+
+const COLOR_PROMPTS: Record<string, string> = {
+  'color_pastel': "pastel spring colors, soft pinks, peaches, yellows, mints, and baby blues, gentle lighting",
+  'color_earthy': "muted earthy color palette, terracotta, mustard, olive, sand, desaturated, sepia wash",
+  'color_vibrant': "vibrant colors, bright primary colors, high contrast, colorful",
+  'color_ocean': "ocean blues palette, teals, navy, seafoam, cool tones",
+  'color_grayscale': "strictly black and white, grayscale, colorless, monochrome"
+};
+
 app.post('/api/generate', async (c) => {
-  const { theme, character, style, pages = 5 } = await c.req.json();
+  const { theme, character, style, color, pages = 5 } = await c.req.json();
   const bookId = crypto.randomUUID();
 
+  const stylePrompts = STYLE_PROMPTS[style] || STYLE_PROMPTS['Vintage'];
+  const colorPrompt = COLOR_PROMPTS[color] || COLOR_PROMPTS['color_earthy'];
+
   // 1. Generate story text using Llama 3
-  const systemPrompt = `You are a creative children's book author. You will generate a story based on a theme, character, and art style.
+  const systemPrompt = `You are a creative children's book author. You will generate a story based on a theme and a character.
 You MUST respond with ONLY a valid JSON object. Do NOT include any explanations, markdown formatting, or introduction text. Just the raw JSON object.
 
 CRITICAL INSTRUCTIONS FOR IMAGES:
 1. Character Continuity: Invent a highly detailed, specific visual description for the main character. You MUST use this EXACT same visual description in every single "image_prompt" to ensure they look identical on every page.
-2. FLUX Optimization: Write the "image_prompt" and "cover_prompt" as a comma-separated list of highly descriptive keywords rather than full sentences. Do NOT include words like "cover", "title", "text", or "words" anywhere in the prompts.
+2. Verbose Scene Descriptions: Make the "image_prompt" and "cover_prompt" extremely descriptive, rich, and verbose. Focus entirely on the subject, action, lighting, scenery, and composition. 
+3. DO NOT include any art styles or colors in your prompts (e.g., do not write "watercolor" or "vintage"). We will append those explicitly in our backend. Just describe the scene in rich detail.
+4. Do NOT include words like "cover", "title", "text", or "words" anywhere in the prompts.
 
 The JSON object must have the following structure:
 {
   "title": "A short, catchy title for the book",
-  "cover_prompt": "A highly detailed, keyword-optimized prompt for the opening scenic illustration. CRITICAL: NEVER ask the image model to include text, words, or an author name. Just ask for a beautiful, text-free illustration.",
+  "cover_prompt": "A highly detailed, verbose prompt describing the opening scenic illustration. CRITICAL: NEVER ask the image model to include text, words, or an author name.",
   "pages": [
     {
       "story_text": "The text for the page (1-2 short sentences).",
-      "image_prompt": "The highly detailed, keyword-optimized prompt for FLUX for this page."
+      "image_prompt": "The highly detailed, verbose prompt describing the scene for this page."
     }
     // ... exactly ${pages} objects in this array
   ]
 }`;
 
-  const userPrompt = `Theme: ${theme}\nMain Character: ${character}\nArt Style: ${style}`;
+  const userPrompt = `Theme: ${theme}\nMain Character: ${character}`;
 
   let textResponse;
   try {
     textResponse = await c.env.AI.run('@cf/meta/llama-3.3-70b-instruct-fp8-fast', {
-      max_tokens: 2048,
+      max_tokens: 4096,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
@@ -61,11 +109,9 @@ The JSON object must have the following structure:
       }
       storyData = JSON.parse(rawStr);
     } else {
-      // It's already parsed!
       storyData = textResponse.response;
     }
     
-    // Ensure storyData is valid
     if (!storyData || !Array.isArray(storyData.pages)) {
       throw new Error("Parsed data is missing the 'pages' array");
     }
@@ -101,15 +147,15 @@ The JSON object must have the following structure:
       throw new Error("R2 bucket 'epaper_books' is not bound. Please bind it in your Cloudflare dashboard.");
     }
 
-    // Hardcoded modifiers to enforce the style and prevent text generation
-    const styleModifiers = `, ${style}, STRICT ADHERENCE TO THIS STYLE, absolutely NO text, NO words, NO letters, NO writing, NO watermark, NO signatures, clean artwork`;
+    const baseNegative = stylePrompts.neg + ", bad anatomy, deformed, blurry, low quality, worst quality, text, words, writing, watermark, signature";
 
     // 2. Generate Cover Image
     let coverResponse: any;
     try {
       const baseCoverPrompt = storyData.cover_prompt || `A beautiful illustration`;
-      coverResponse = await c.env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
-        prompt: `${baseCoverPrompt}${styleModifiers}`
+      coverResponse = await c.env.AI.run('@cf/stabilityai/stable-diffusion-xl-base-1.0', {
+        prompt: `${baseCoverPrompt}, ${stylePrompts.pos}, ${colorPrompt}`,
+        negative_prompt: baseNegative
       });
     } catch (err: any) {
       return c.json({ error: 'AI Cover Generation Failed', details: err.message }, 500);
@@ -125,8 +171,9 @@ The JSON object must have the following structure:
       
       let imageResponse: any;
       try {
-        imageResponse = await c.env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
-          prompt: `${page.image_prompt}${styleModifiers}`
+        imageResponse = await c.env.AI.run('@cf/stabilityai/stable-diffusion-xl-base-1.0', {
+          prompt: `${page.image_prompt}, ${stylePrompts.pos}, ${colorPrompt}`,
+          negative_prompt: baseNegative
         });
       } catch (err: any) {
         return c.json({ error: 'AI Image Generation Failed', details: err.message, page: i }, 500);
@@ -146,7 +193,7 @@ The JSON object must have the following structure:
       });
     }
 
-    // 3. Save manifest
+    // 4. Save manifest
     const manifestKey = `${bookId}/manifest.json`;
     await c.env.epaper_books.put(manifestKey, JSON.stringify(manifest), {
       httpMetadata: { contentType: 'application/json' }

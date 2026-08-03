@@ -52,7 +52,6 @@ export function GeneratorForm({ onGenerated }: GeneratorFormProps) {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
       
-      const styleDesc = `${selectedStyle} illustration style, color palette: ${COLORS.find(c => c.id === selectedColor)?.name}`;
       const charDesc = selectedCharacter === 'Custom' 
         ? customCharacter 
         : CHARACTERS.find(c => c.id === selectedCharacter)?.label;
@@ -63,7 +62,8 @@ export function GeneratorForm({ onGenerated }: GeneratorFormProps) {
         body: JSON.stringify({ 
           theme, 
           character: charDesc, 
-          style: styleDesc, 
+          style: selectedStyle,
+          color: selectedColor,
           pages 
         }),
       });
