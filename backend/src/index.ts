@@ -68,39 +68,47 @@ Each object must have the following keys:
     pages: [] as any[]
   };
 
-  // 2. Generate images for each page
-  for (let i = 0; i < pagesData.length; i++) {
-    const page = pagesData[i];
-    
-    let imageResponse;
-    try {
-      imageResponse = await c.env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
-        prompt: page.image_prompt
+  try {
+    // 2. Generate images for each page
+    for (let i = 0; i < pagesData.length; i++) {
+      const page = pagesData[i];
+      
+      let imageResponse;
+      try {
+        imageResponse = await c.env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
+          prompt: page.image_prompt
+        });
+      } catch (err: any) {
+        return c.json({ error: 'AI Image Generation Failed', details: err.message, page: i }, 500);
+      }
+      
+      // imageResponse is an array of bytes or base64
+      const imageKey = `${bookId}/page_${i}.jpeg`;
+      
+      if (!c.env.epaper_books) {
+        throw new Error("R2 bucket 'epaper_books' is not bound. Please bind it in your Cloudflare dashboard.");
+      }
+
+      await c.env.epaper_books.put(imageKey, imageResponse, {
+        httpMetadata: { contentType: 'image/jpeg' }
       });
-    } catch (err: any) {
-      return c.json({ error: 'AI Image Generation Failed', details: err.message, page: i }, 500);
+
+      manifest.pages.push({
+        pageNumber: i + 1,
+        story_text: page.story_text,
+        image_prompt: page.image_prompt,
+        image_path: imageKey
+      });
     }
-    
-    // imageResponse is an array of bytes
-    const imageKey = `${bookId}/page_${i}.jpeg`;
-    
-    await c.env.epaper_books.put(imageKey, imageResponse, {
-      httpMetadata: { contentType: 'image/jpeg' }
-    });
 
-    manifest.pages.push({
-      pageNumber: i + 1,
-      story_text: page.story_text,
-      image_prompt: page.image_prompt,
-      image_path: imageKey
+    // 3. Save manifest
+    const manifestKey = `${bookId}/manifest.json`;
+    await c.env.epaper_books.put(manifestKey, JSON.stringify(manifest), {
+      httpMetadata: { contentType: 'application/json' }
     });
+  } catch (err: any) {
+    return c.json({ error: 'Process Failed after Text Generation', details: err.message, raw: err.stack }, 500);
   }
-
-  // 3. Save manifest
-  const manifestKey = `${bookId}/manifest.json`;
-  await c.env.epaper_books.put(manifestKey, JSON.stringify(manifest), {
-    httpMetadata: { contentType: 'application/json' }
-  });
 
   return c.json(manifest);
 });
