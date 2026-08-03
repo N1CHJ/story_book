@@ -19,7 +19,7 @@ app.post('/api/generate', async (c) => {
 You MUST respond with ONLY a valid JSON object. Do NOT include any explanations, markdown formatting, or introduction text. Just the raw JSON object.
 
 CRITICAL INSTRUCTIONS FOR IMAGES:
-1. Character Continuity: Invent a highly detailed, specific visual description for the main character (e.g., "a fluffy brown bear wearing a bright red spacesuit and a glass helmet"). You MUST use this EXACT same visual description in every single "image_prompt" to ensure they look identical on every page.
+1. Character Continuity: Invent a highly detailed, specific visual description for the main character. You MUST use this EXACT same visual description in every single "image_prompt" to ensure they look identical on every page.
 2. FLUX Optimization: Write the "image_prompt" and "cover_prompt" as a comma-separated list of highly descriptive keywords rather than full sentences (e.g., "[Character Description], standing on a cheese crater, glowing green alien friend, starry space background, dramatic lighting, ${style}").
 
 The JSON object must have the following structure:
@@ -152,6 +152,33 @@ The JSON object must have the following structure:
   }
 
   return c.json(manifest);
+});
+
+app.get('/api/books', async (c) => {
+  const listed = await c.env.epaper_books.list();
+  const manifestKeys = listed.objects.filter((obj: any) => obj.key.endsWith('/manifest.json'));
+  
+  const books = await Promise.all(
+    manifestKeys.map(async (obj: any) => {
+      const file = await c.env.epaper_books.get(obj.key);
+      if (file) {
+        try {
+          const manifest: any = await file.json();
+          return {
+            id: manifest.id,
+            title: manifest.title,
+            theme: manifest.theme,
+            cover_image: manifest.cover_image,
+          };
+        } catch (e) {
+          return null;
+        }
+      }
+      return null;
+    })
+  );
+
+  return c.json(books.filter((b) => b !== null));
 });
 
 app.get('/api/book/:id', async (c) => {

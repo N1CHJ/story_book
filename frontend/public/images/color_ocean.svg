@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500">
+  <rect width="500" height="500" fill="#FDFBF7"/>
+  <text x="250" y="100" font-family="sans-serif" font-size="28" font-weight="bold" fill="#333" text-anchor="middle" letter-spacing="2">OCEAN BLUES</text>
+  <circle cx="90" cy="280" r="35" fill="#03045E"/>
+  <circle cx="170" cy="280" r="35" fill="#0077B6"/>
+  <circle cx="250" cy="280" r="35" fill="#00B4D8"/>
+  <circle cx="330" cy="280" r="35" fill="#90E0EF"/>
+  <circle cx="410" cy="280" r="35" fill="#CAF0F8"/>
+</svg>
